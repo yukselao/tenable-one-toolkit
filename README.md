@@ -8,6 +8,8 @@ A CLI tool for interacting with the Tenable One API to list scans, export assets
 - Export assets filtered by tag category and value to CSV
 - Export all assets without filtering
 - Get detailed asset info by hostname (human-friendly JSON)
+- Get plugin details and affected assets by plugin ID
+- Search assets by IP address or hostname
 - Identify top exposed assets based on AES (Asset Exposure Score)
 - Fully parameterized CLI interface
 
@@ -63,6 +65,41 @@ TENABLE_ACCESS_KEY=your_actual_access_key
 TENABLE_SECRET_KEY=your_actual_secret_key
 ```
 
+## How It Works
+
+A typical workflow to explore your Tenable One environment:
+
+```bash
+# 1. Overview - Check scan status
+python main.py --list-scans
+
+# 2. Discovery - Export full asset inventory
+python main.py --export-all -o all_assets.csv
+
+# 3. Top 10 riskiest assets - Where to focus?
+python main.py --top-assets -i all_assets.csv --top 10
+
+# 4. Deep dive into a specific asset (pick one from top 10)
+python main.py --asset-info se-dc1
+
+# 5. Search assets - By IP
+python main.py --search-assets 192.168.15
+
+# 6. Search assets - By hostname
+python main.py --search-assets dc
+
+# 7. Investigate a critical vulnerability
+python main.py --plugin-info 10114
+
+# 8. Tag-based filtering - Specific group
+python main.py --export-assets --tag-category OS --tag-value 'Linux' -o linux_servers.csv
+
+# 9. Top risks in that group
+python main.py --top-assets -i linux_servers.csv --top 5
+```
+
+**Demo story:** Scan status → Inventory → Risk prioritization → Investigation → Vulnerability analysis → Segment-based review
+
 ## Usage
 
 ### Show help
@@ -105,6 +142,25 @@ python main.py --asset-info win-2019
 python main.py --asset-info websvr.labnet.local
 ```
 
+### Get plugin info and affected assets
+
+```bash
+# Get plugin details (CVE, CVSS, solution) and list of affected assets
+python main.py --plugin-info 10114
+python main.py --plugin-info 19506
+```
+
+### Search assets
+
+```bash
+# Search by IP address (partial match)
+python main.py --search-assets 192.168.1
+
+# Search by hostname (partial match)
+python main.py --search-assets win-server
+python main.py --search-assets dc
+```
+
 ### Display top exposed assets
 
 ```bash
@@ -129,6 +185,8 @@ python main.py --all --tag-category Location --tag-value London
 | `--export-assets` | | Export assets filtered by tag | |
 | `--export-all` | | Export all assets without filtering | |
 | `--asset-info` | | Get asset details by hostname (JSON) | |
+| `--plugin-info` | | Get plugin details and affected assets | |
+| `--search-assets` | | Search assets by IP or hostname | |
 | `--top-assets` | | Display top exposed assets | |
 | `--all` | | Run all operations | |
 | `--tag-category` | | Tag category for filtering | `Location` |
@@ -183,6 +241,18 @@ Calls `tio.exports.assets()` without any filters to export the entire asset inve
 
 - **AES (Asset Exposure Score)**: In the API JSON response, this field is usually mapped to `exposure_score` (ranges from 0-1000).
 - We cast this column to numeric (handling any potential nulls) and use `df.sort_values(ascending=False)` to put the riskiest assets at the top.
+
+### 7. Plugin Info (`get_plugin_info`)
+
+- Uses `tio.plugins.plugin_details(plugin_id)` to get plugin metadata (CVE, CVSS, synopsis, solution)
+- Uses `tio.workbenches.vuln_assets()` to find all assets affected by this plugin
+- Outputs human-friendly JSON with plugin details and up to 20 affected assets
+
+### 8. Asset Search (`search_assets`)
+
+- Iterates through `tio.assets.list()` and performs partial, case-insensitive matching
+- Searches across hostname, FQDN, NetBIOS name, IPv4, and IPv6 fields
+- Returns up to 50 matching assets with key details
 
 ## Output Example
 
