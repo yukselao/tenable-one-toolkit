@@ -78,7 +78,7 @@ python main.py --export-all -o all_assets.parquet
 # 3. Top 10 riskiest assets - Where to focus?
 python main.py --top-assets -i all_assets.parquet --top 10
 
-# 4. Deep dive into a specific asset (pick one from top 10)
+# 4. Deep dive into a specific asset - details + vulnerabilities
 python main.py --asset-info se-dc1 -i all_assets.parquet
 
 # 5. Search assets - By IP
@@ -140,16 +140,18 @@ python main.py --export-all
 python main.py --export-all -o all_assets.parquet
 ```
 
-### Get asset info by hostname
+### Get asset info by hostname (with vulnerabilities)
 
 ```bash
 # First export assets, then search in the exported file
 python main.py --export-all -o all_assets.parquet
 
-# Get detailed asset information in JSON format
+# Get detailed asset information including vulnerabilities
 python main.py --asset-info se-dc1 -i all_assets.parquet
 python main.py --asset-info 192.168.15.101 -i all_assets.parquet
 ```
+
+Output includes: asset details, tags, exposure scores, and top 30 vulnerabilities sorted by severity (Critical → High → Medium → Low → Info) with a summary count.
 
 ### Get plugin info and affected assets
 
@@ -336,7 +338,7 @@ AES        | IP Address      | Hostname
 942        | 192.168.48.56   | target2
 ```
 
-### Asset Info
+### Asset Info (with Vulnerabilities)
 
 ```
 $ python main.py --asset-info se-dc1 -i all_assets.parquet
@@ -355,7 +357,27 @@ $ python main.py --asset-info se-dc1 -i all_assets.parquet
     "Software:Mcafee Agent Missing",
     "OS:Windows Server",
     "OS:Windows"
-  ]
+  ],
+  "Vulnerability Count": 310,
+  "Vulnerability Summary": {
+    "Critical": 49,
+    "High": 63,
+    "Medium": 21,
+    "Low": 3,
+    "Info": 174
+  },
+  "Vulnerabilities": [
+    {
+      "plugin_id": 182865,
+      "plugin_name": "KB5031361: Windows Server 2019 Security Update (October 2023)",
+      "severity": "Critical",
+      "vpr_score": 8.4,
+      "cvss_base_score": 10.0,
+      "exploit_available": false
+    },
+    ...
+  ],
+  "Vulnerabilities Note": "Showing top 30 of 310 vulnerabilities (sorted by severity)"
 }
 ```
 

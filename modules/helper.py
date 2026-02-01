@@ -409,6 +409,48 @@ def get_asset_info(tio, hostname, data_file='assets.parquet'):
                 ]
             }
 
+            # Get vulnerabilities for this asset
+            try:
+                vulns = []
+                # Severity mapping: 0=Info, 1=Low, 2=Medium, 3=High, 4=Critical
+                severity_map = {0: 'Info', 1: 'Low', 2: 'Medium', 3: 'High', 4: 'Critical'}
+
+                for vuln in tio.workbenches.asset_vulns(asset_uuid):
+                    severity_num = vuln.get('severity', 0)
+                    vuln_info = {
+                        'plugin_id': vuln.get('plugin_id'),
+                        'plugin_name': vuln.get('plugin_name'),
+                        'severity': severity_map.get(severity_num, 'Unknown'),
+                        'severity_id': severity_num,
+                        'vpr_score': vuln.get('vpr_score', 'N/A'),
+                        'cvss_base_score': vuln.get('cvss_base_score', 'N/A'),
+                        'exploit_available': vuln.get('exploit_available', False)
+                    }
+                    vulns.append(vuln_info)
+
+                # Sort by severity (Critical first = 4, then High = 3, etc.)
+                vulns.sort(key=lambda x: x['severity_id'], reverse=True)
+
+                # Remove severity_id from output (only used for sorting)
+                for v in vulns:
+                    del v['severity_id']
+
+                # Count by severity
+                severity_counts = {}
+                for v in vulns:
+                    sev = v['severity']
+                    severity_counts[sev] = severity_counts.get(sev, 0) + 1
+
+                friendly_output['Vulnerability Count'] = len(vulns)
+                friendly_output['Vulnerability Summary'] = severity_counts
+                friendly_output['Vulnerabilities'] = vulns[:30]  # Limit to top 30
+
+                if len(vulns) > 30:
+                    friendly_output['Vulnerabilities Note'] = f'Showing top 30 of {len(vulns)} vulnerabilities (sorted by severity)'
+
+            except Exception as vuln_error:
+                friendly_output['Vulnerabilities'] = f'Could not retrieve: {vuln_error}'
+
             print(json.dumps(friendly_output, indent=2, default=str))
             return details
 
