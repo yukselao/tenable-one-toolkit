@@ -177,6 +177,26 @@ Export job started, downloading data...
 113 assets exported to 'assets.csv'
 ```
 
+**CSV Output Structure:**
+
+```
+$ head -3 assets.csv
+
+id,ipv4,hostname,os,exposure_score,acr_score,tags
+0521d598-94bf-407b-9c21-af96a4732277,192.168.1.41,websvr.labnet.local,Unknown,620.0,5.0,"[{'key': 'tom', 'value': 'linux servers', ...}]"
+091f3255-d7a1-4b5b-8a00-6ee6a03e3f63,192.168.1.70,win-2019,Unknown,773.0,6.0,"[{'key': 'tom', 'value': 'linux servers', ...}]"
+```
+
+| Column | Description |
+|--------|-------------|
+| `id` | Tenable asset UUID |
+| `ipv4` | Primary IPv4 address |
+| `hostname` | Asset hostname |
+| `os` | Operating system |
+| `exposure_score` | AES score (0-1000) |
+| `acr_score` | Asset Criticality Rating |
+| `tags` | Associated Tenable tags |
+
 ### Top Exposed Assets
 
 ```
