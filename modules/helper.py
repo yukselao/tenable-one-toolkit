@@ -110,11 +110,16 @@ def export_assets_by_tag(tio, tag_category, tag_value, output_file='assets.csv')
 
         for asset in assets_iterator:
             # Flatten relevant fields for CSV output
+            # Handle empty lists safely
+            ipv4s = asset.get('ipv4s') or []
+            hostnames = asset.get('hostnames') or []
+            os_list = asset.get('operating_system') or []
+
             flat_asset = {
                 'id': asset.get('id'),
-                'ipv4': asset.get('ipv4s', [''])[0],
-                'hostname': asset.get('hostnames', [''])[0],
-                'os': asset.get('operating_system', ['Unknown'])[0],
+                'ipv4': ipv4s[0] if ipv4s else '',
+                'hostname': hostnames[0] if hostnames else '',
+                'os': os_list[0] if os_list else 'Unknown',
                 'exposure_score': asset.get('exposure_score', 0),  # AES score
                 'acr_score': asset.get('acr_score', 0),            # ACR score
                 'tags': str(asset.get('tags', []))
