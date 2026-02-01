@@ -55,6 +55,79 @@ def load_dataframe(file_path):
         return pd.read_parquet(file_path)
 
 
+def convert_to_csv(input_file, output_file=None):
+    """
+    Convert a Parquet file to CSV format.
+
+    Args:
+        input_file: Input file path (.parquet)
+        output_file: Output CSV file path (optional, defaults to same name with .csv)
+
+    Returns:
+        str: Output file path
+    """
+    if output_file is None:
+        output_file = input_file.rsplit('.', 1)[0] + '.csv'
+
+    print(f"\n--- Convert to CSV ---")
+
+    try:
+        df = load_dataframe(input_file)
+
+        # Convert tags list to string for CSV compatibility
+        if 'tags' in df.columns:
+            df['tags'] = df['tags'].apply(
+                lambda x: json.dumps(x) if isinstance(x, list) else str(x)
+            )
+
+        df.to_csv(output_file, index=False)
+        print(f"Converted {len(df)} records from '{input_file}' to '{output_file}'")
+        return output_file
+
+    except FileNotFoundError:
+        print(f"Error: File '{input_file}' not found.")
+        return None
+    except Exception as e:
+        print(f"Error converting file: {e}")
+        return None
+
+
+def convert_to_json(input_file, output_file=None):
+    """
+    Convert a Parquet/CSV file to JSON format.
+
+    Args:
+        input_file: Input file path (.parquet or .csv)
+        output_file: Output JSON file path (optional, defaults to same name with .json)
+
+    Returns:
+        str: Output file path
+    """
+    if output_file is None:
+        output_file = input_file.rsplit('.', 1)[0] + '.json'
+
+    print(f"\n--- Convert to JSON ---")
+
+    try:
+        df = load_dataframe(input_file)
+
+        # Convert DataFrame to list of dicts for JSON
+        records = df.to_dict(orient='records')
+
+        with open(output_file, 'w', encoding='utf-8') as f:
+            json.dump(records, f, indent=2, default=str)
+
+        print(f"Converted {len(records)} records from '{input_file}' to '{output_file}'")
+        return output_file
+
+    except FileNotFoundError:
+        print(f"Error: File '{input_file}' not found.")
+        return None
+    except Exception as e:
+        print(f"Error converting file: {e}")
+        return None
+
+
 # ==========================================
 # CLIENT CONNECTION
 # ==========================================

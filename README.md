@@ -95,9 +95,13 @@ python main.py --export-assets --tag-category OS --tag-value Linux -o linux.parq
 
 # 9. Top risks in that group
 python main.py --top-assets -i linux.parquet --top 5
+
+# 10. Export for sharing - Convert to CSV or JSON
+python main.py --to-csv -i all_assets.parquet
+python main.py --to-json -i all_assets.parquet
 ```
 
-**Demo story:** Scan status → Inventory → Risk prioritization → Investigation → Vulnerability analysis → Segment-based review
+**Demo story:** Scan status → Inventory → Risk prioritization → Investigation → Vulnerability analysis → Segment-based review → Export for sharing
 
 ## Usage
 
@@ -185,6 +189,20 @@ python main.py --top-assets -i all_assets.parquet --top 10
 python main.py --all --tag-category Location --tag-value London
 ```
 
+### Convert Parquet to CSV or JSON
+
+```bash
+# Convert to CSV (same filename with .csv extension)
+python main.py --to-csv -i all_assets.parquet
+
+# Convert to JSON (same filename with .json extension)
+python main.py --to-json -i all_assets.parquet
+
+# Convert with custom output filename
+python main.py --to-csv -i all_assets.parquet -o exported_assets.csv
+python main.py --to-json -i all_assets.parquet -o exported_assets.json
+```
+
 ## CLI Options
 
 | Option | Short | Description | Default |
@@ -196,10 +214,12 @@ python main.py --all --tag-category Location --tag-value London
 | `--plugin-info` | | Get plugin details and affected assets | |
 | `--search-assets` | | Search assets by IP or hostname | |
 | `--top-assets` | | Display top exposed assets | |
+| `--to-csv` | | Convert input file to CSV format | |
+| `--to-json` | | Convert input file to JSON format | |
 | `--all` | | Run all operations | |
 | `--tag-category` | | Tag category for filtering | `Location` |
 | `--tag-value` | | Tag value for filtering | `London` |
-| `--output` | `-o` | Output file path (.parquet or .csv) | `assets.parquet` |
+| `--output` | `-o` | Output file path (.parquet, .csv, .json) | `assets.parquet` |
 | `--input` | `-i` | Input file for analysis | `assets.parquet` |
 | `--top` | | Number of top assets | `5` |
 

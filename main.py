@@ -26,7 +26,9 @@ from modules.helper import (
     get_plugin_info,
     search_assets,
     get_top_exposed_assets,
-    load_dataframe
+    load_dataframe,
+    convert_to_csv,
+    convert_to_json
 )
 
 # Load environment variables from .env file
@@ -47,6 +49,8 @@ Examples:
   python main.py --search-assets 192.168.15 -i all_assets.parquet
   python main.py --plugin-info 10114
   python main.py --top-assets -i all_assets.parquet --top 10
+  python main.py --to-csv -i all_assets.parquet
+  python main.py --to-json -i all_assets.parquet -o assets.json
         '''
     )
 
@@ -102,6 +106,18 @@ Examples:
         help='Run all operations (list-scans, export-assets, top-assets)'
     )
 
+    parser.add_argument(
+        '--to-csv',
+        action='store_true',
+        help='Convert input file to CSV format'
+    )
+
+    parser.add_argument(
+        '--to-json',
+        action='store_true',
+        help='Convert input file to JSON format'
+    )
+
     # Export parameters
     parser.add_argument(
         '--tag-category',
@@ -155,7 +171,9 @@ def main():
         args.plugin_info,
         args.search_assets,
         args.top_assets,
-        args.all
+        args.all,
+        args.to_csv,
+        args.to_json
     ])
 
     if not has_command:
@@ -214,6 +232,13 @@ def main():
                 return
 
         get_top_exposed_assets(df_assets, args.top)
+
+    # File conversion commands (no API needed)
+    if args.to_csv:
+        convert_to_csv(args.input, args.output if args.output != 'assets.parquet' else None)
+
+    if args.to_json:
+        convert_to_json(args.input, args.output if args.output != 'assets.parquet' else None)
 
 
 if __name__ == "__main__":
