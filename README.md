@@ -154,29 +154,49 @@ This is the most critical part. Instead of listing assets page-by-page (which is
 
 ## Output Example
 
+### List Scans
+
 ```
-$ python main.py --all --tag-category Location --tag-value London
+$ python main.py --list-scans
 
 --- Successful VM Scans ---
 Scan ID    | Status          | Scan Name
 ------------------------------------------------------------
-12345      | completed       | Weekly Network Scan
-12346      | completed       | Monthly Full Scan
+4027       | completed       | Tire 1 Vuln Scan
 
-Total Successful Scans: 2
+Total Successful Scans: 1
+```
 
---- Asset Export (Tag: Location:London) ---
+### Export Assets
+
+```
+$ python main.py --export-assets --tag-category tom --tag-value 'linux servers'
+
+--- Asset Export (Tag: tom:linux servers) ---
 Export job started, downloading data...
-150 assets exported to 'assets.csv'
+113 assets exported to 'assets.csv'
+```
 
---- Top 5 Most Exposed Assets (AES) ---
+### Top Exposed Assets
+
+```
+$ python main.py --top-assets --top 10
+
+Loaded 113 assets from 'assets.csv'
+
+--- Top 10 Most Exposed Assets (AES) ---
 AES        | IP Address      | Hostname
 --------------------------------------------------
-850        | 192.168.1.10    | server-prod-01
-720        | 192.168.1.15    | db-primary
-680        | 192.168.1.20    | web-frontend
-550        | 192.168.1.25    | api-gateway
-490        | 192.168.1.30    | cache-server
+836        | 192.168.1.28    | win-vuln-email
+835        | 192.168.1.14    | win-exchange
+773        | 192.168.1.26    | prod-bigfix
+773        | 192.168.1.70    | win-2019
+773        | 192.168.1.43    | vistax64
+773        | 192.168.1.55    | winxpro
+773        | 192.168.1.64    | win-sql2012
+772        | 192.168.1.82    | winxp-nonhacked
+771        | 192.168.1.56    | win2k
+755        | 192.168.1.110   | svr-sharepoint
 ```
 
 ## License
