@@ -2,15 +2,17 @@
 """
 Tenable One Asset Analysis Tool
 
-This script uses the Tenable One API to:
-1. List successful scans
-2. Export assets by tag
-3. Analyze the most exposed assets (AES)
+A CLI tool for interacting with Tenable One API to list scans,
+export assets, and analyze exposure scores.
 
 Usage:
-    python main.py
+    python main.py --list-scans
+    python main.py --export-assets --tag-category Location --tag-value London
+    python main.py --top-assets --input assets.csv
+    python main.py --all --tag-category Location --tag-value London
 """
 
+import argparse
 from dotenv import load_dotenv
 from modules.helper import (
     get_client,
@@ -23,31 +25,127 @@ from modules.helper import (
 load_dotenv()
 
 
-# ==========================================
-# CONFIGURATION
-# ==========================================
+def parse_args():
+    """Parse command line arguments."""
+    parser = argparse.ArgumentParser(
+        description='Tenable One Asset Analysis Tool',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog='''
+Examples:
+  python main.py --list-scans
+  python main.py --export-assets --tag-category Location --tag-value London
+  python main.py --export-assets --tag-category Environment --tag-value Production -o prod_assets.csv
+  python main.py --top-assets --input assets.csv --top 10
+  python main.py --all --tag-category Location --tag-value London
+        '''
+    )
 
-# Tag filtering settings - modify according to your Tenable One tags
-TAG_CATEGORY = "Location"
-TAG_VALUE = "London"
+    # Command options
+    parser.add_argument(
+        '--list-scans',
+        action='store_true',
+        help='List all completed scans'
+    )
 
-# Output file
-OUTPUT_FILE = "assets.csv"
+    parser.add_argument(
+        '--export-assets',
+        action='store_true',
+        help='Export assets filtered by tag'
+    )
+
+    parser.add_argument(
+        '--top-assets',
+        action='store_true',
+        help='Display top exposed assets by AES score'
+    )
+
+    parser.add_argument(
+        '--all',
+        action='store_true',
+        help='Run all operations (list-scans, export-assets, top-assets)'
+    )
+
+    # Export parameters
+    parser.add_argument(
+        '--tag-category',
+        type=str,
+        default='Location',
+        help='Tag category for filtering assets (default: Location)'
+    )
+
+    parser.add_argument(
+        '--tag-value',
+        type=str,
+        default='London',
+        help='Tag value for filtering assets (default: London)'
+    )
+
+    parser.add_argument(
+        '-o', '--output',
+        type=str,
+        default='assets.csv',
+        help='Output CSV file path (default: assets.csv)'
+    )
+
+    # Top assets parameters
+    parser.add_argument(
+        '-i', '--input',
+        type=str,
+        default='assets.csv',
+        help='Input CSV file for top-assets analysis (default: assets.csv)'
+    )
+
+    parser.add_argument(
+        '--top',
+        type=int,
+        default=5,
+        help='Number of top assets to display (default: 5)'
+    )
+
+    return parser.parse_args()
 
 
-# ==========================================
-# MAIN FLOW
-# ==========================================
+def main():
+    """Main entry point."""
+    args = parse_args()
+
+    # Show help if no command specified
+    if not any([args.list_scans, args.export_assets, args.top_assets, args.all]):
+        print("No command specified. Use --help for usage information.")
+        return
+
+    # Initialize client only when needed
+    tio = None
+    if args.list_scans or args.export_assets or args.all:
+        tio = get_client()
+
+    # Execute commands
+    df_assets = None
+
+    if args.list_scans or args.all:
+        list_successful_scans(tio)
+
+    if args.export_assets or args.all:
+        df_assets = export_assets_by_tag(
+            tio,
+            args.tag_category,
+            args.tag_value,
+            args.output
+        )
+
+    if args.top_assets or args.all:
+        if df_assets is None:
+            # Load from file if not already in memory
+            import pandas as pd
+            try:
+                df_assets = pd.read_csv(args.input)
+                print(f"\nLoaded {len(df_assets)} assets from '{args.input}'")
+            except FileNotFoundError:
+                print(f"Error: File '{args.input}' not found. Run --export-assets first.")
+                return
+
+        get_top_exposed_assets(df_assets, args.top)
+
 
 if __name__ == "__main__":
-    # 1. Initialize Tenable API connection
-    tio = get_client()
-
-    # 2. List completed scans
-    list_successful_scans(tio)
-
-    # 3. Export assets by specified tag
-    df_assets = export_assets_by_tag(tio, TAG_CATEGORY, TAG_VALUE, OUTPUT_FILE)
-
-    # 4. Display assets with highest AES scores
-    get_top_exposed_assets(df_assets)
+    main()

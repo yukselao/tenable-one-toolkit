@@ -1,12 +1,13 @@
 # Tenable One Asset Analysis Tool
 
-A Python tool for interacting with the Tenable One API to list scans, export assets by tags, and analyze asset exposure scores (AES).
+A CLI tool for interacting with the Tenable One API to list scans, export assets by tags, and analyze asset exposure scores (AES).
 
 ## Features
 
 - List all successful (completed) VM scans
 - Export assets filtered by tag category and value to CSV
 - Identify top exposed assets based on AES (Asset Exposure Score)
+- Fully parameterized CLI interface
 
 ## Prerequisites
 
@@ -19,8 +20,8 @@ A Python tool for interacting with the Tenable One API to list scans, export ass
 ### 1. Clone the repository
 
 ```bash
-git clone <repository-url>
-cd t1
+git clone git@github.com:yukselao/tenable-one-toolkit.git
+cd tenable-one-toolkit
 ```
 
 ### 2. Create virtual environment
@@ -44,11 +45,6 @@ venv\Scripts\activate
 ### 4. Install dependencies
 
 ```bash
-pip install pytenable pandas python-dotenv
-```
-
-Or create a `requirements.txt` and install:
-```bash
 pip install -r requirements.txt
 ```
 
@@ -67,32 +63,69 @@ TENABLE_SECRET_KEY=your_actual_secret_key
 
 ## Usage
 
-### Run the script
+### Show help
 
 ```bash
-python main.py
+python main.py --help
 ```
 
-### Configuration
+### List completed scans
 
-Edit `main.py` to customize tag filtering:
-
-```python
-TAG_CATEGORY = "Location"  # Your tag category
-TAG_VALUE = "London"       # Your tag value
-OUTPUT_FILE = "assets.csv" # Output filename
+```bash
+python main.py --list-scans
 ```
+
+### Export assets by tag
+
+```bash
+# Basic usage
+python main.py --export-assets --tag-category Location --tag-value London
+
+# Custom output file
+python main.py --export-assets --tag-category Environment --tag-value Production -o prod_assets.csv
+```
+
+### Display top exposed assets
+
+```bash
+# From default file (assets.csv)
+python main.py --top-assets
+
+# From specific file with custom count
+python main.py --top-assets --input prod_assets.csv --top 10
+```
+
+### Run all operations
+
+```bash
+python main.py --all --tag-category Location --tag-value London
+```
+
+## CLI Options
+
+| Option | Short | Description | Default |
+|--------|-------|-------------|---------|
+| `--list-scans` | | List all completed scans | |
+| `--export-assets` | | Export assets filtered by tag | |
+| `--top-assets` | | Display top exposed assets | |
+| `--all` | | Run all operations | |
+| `--tag-category` | | Tag category for filtering | `Location` |
+| `--tag-value` | | Tag value for filtering | `London` |
+| `--output` | `-o` | Output CSV file path | `assets.csv` |
+| `--input` | `-i` | Input CSV for analysis | `assets.csv` |
+| `--top` | | Number of top assets | `5` |
 
 ## Project Structure
 
 ```
-t1/
+tenable-one-toolkit/
 ├── .env                # API credentials (git-ignored)
 ├── .env.example        # Example environment file
-├── main.py             # Main entry point
+├── main.py             # CLI entry point
 ├── modules/
 │   ├── __init__.py
 │   └── helper.py       # Helper functions
+├── requirements.txt    # Python dependencies
 └── README.md
 ```
 
@@ -114,7 +147,7 @@ This is the most critical part. Instead of listing assets page-by-page (which is
 - **Filtering**: We pass `tags=[(Category, Value)]` to the export function. Tenable filters the data server-side before sending it to us.
 - **Pandas**: We load the results into a Pandas DataFrame. This makes saving to CSV (`df.to_csv`) and sorting data significantly easier than writing raw file handlers.
 
-### 4. Top 5 AES (`get_top_exposed_assets`)
+### 4. Top Assets by AES (`get_top_exposed_assets`)
 
 - **AES (Asset Exposure Score)**: In the API JSON response, this field is usually mapped to `exposure_score` (ranges from 0-1000).
 - We cast this column to numeric (handling any potential nulls) and use `df.sort_values(ascending=False)` to put the riskiest assets at the top.
@@ -122,6 +155,8 @@ This is the most critical part. Instead of listing assets page-by-page (which is
 ## Output Example
 
 ```
+$ python main.py --all --tag-category Location --tag-value London
+
 --- Successful VM Scans ---
 Scan ID    | Status          | Scan Name
 ------------------------------------------------------------
