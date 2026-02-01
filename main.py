@@ -8,8 +8,9 @@ export assets, and analyze exposure scores.
 Usage:
     python main.py --list-scans
     python main.py --export-assets --tag-category Location --tag-value London
+    python main.py --export-all
+    python main.py --asset-info win-2019
     python main.py --top-assets --input assets.csv
-    python main.py --all --tag-category Location --tag-value London
 """
 
 import argparse
@@ -18,6 +19,8 @@ from modules.helper import (
     get_client,
     list_successful_scans,
     export_assets_by_tag,
+    export_all_assets,
+    get_asset_info,
     get_top_exposed_assets
 )
 
@@ -34,7 +37,8 @@ def parse_args():
 Examples:
   python main.py --list-scans
   python main.py --export-assets --tag-category Location --tag-value London
-  python main.py --export-assets --tag-category Environment --tag-value Production -o prod_assets.csv
+  python main.py --export-all -o all_assets.csv
+  python main.py --asset-info win-2019
   python main.py --top-assets --input assets.csv --top 10
   python main.py --all --tag-category Location --tag-value London
         '''
@@ -51,6 +55,19 @@ Examples:
         '--export-assets',
         action='store_true',
         help='Export assets filtered by tag'
+    )
+
+    parser.add_argument(
+        '--export-all',
+        action='store_true',
+        help='Export all assets without tag filtering'
+    )
+
+    parser.add_argument(
+        '--asset-info',
+        type=str,
+        metavar='HOSTNAME',
+        help='Get detailed asset info by hostname (JSON output)'
     )
 
     parser.add_argument(
@@ -110,13 +127,30 @@ def main():
     args = parse_args()
 
     # Show help if no command specified
-    if not any([args.list_scans, args.export_assets, args.top_assets, args.all]):
+    has_command = any([
+        args.list_scans,
+        args.export_assets,
+        args.export_all,
+        args.asset_info,
+        args.top_assets,
+        args.all
+    ])
+
+    if not has_command:
         print("No command specified. Use --help for usage information.")
         return
 
     # Initialize client only when needed
     tio = None
-    if args.list_scans or args.export_assets or args.all:
+    needs_client = any([
+        args.list_scans,
+        args.export_assets,
+        args.export_all,
+        args.asset_info,
+        args.all
+    ])
+
+    if needs_client:
         tio = get_client()
 
     # Execute commands
@@ -125,13 +159,19 @@ def main():
     if args.list_scans or args.all:
         list_successful_scans(tio)
 
-    if args.export_assets or args.all:
+    if args.export_all:
+        df_assets = export_all_assets(tio, args.output)
+
+    elif args.export_assets or args.all:
         df_assets = export_assets_by_tag(
             tio,
             args.tag_category,
             args.tag_value,
             args.output
         )
+
+    if args.asset_info:
+        get_asset_info(tio, args.asset_info)
 
     if args.top_assets or args.all:
         if df_assets is None:

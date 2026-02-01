@@ -6,11 +6,13 @@ the Tenable One/IO API:
 - Client connection initialization
 - Scan listing
 - Asset export operations
+- Asset info lookup
 - AES analysis
 """
 
 import os
 import sys
+import json
 import pandas as pd
 from tenable.io import TenableIO
 from tenable.errors import TioExportsError
@@ -142,6 +144,136 @@ def export_assets_by_tag(tio, tag_category, tag_value, output_file='assets.csv')
         print(f"Unexpected error: {e}")
 
     return None
+
+
+# ==========================================
+# EXPORT ALL ASSETS
+# ==========================================
+
+def export_all_assets(tio, output_file='assets.csv'):
+    """
+    Exports all assets without any tag filtering.
+
+    Args:
+        tio: TenableIO client instance
+        output_file: Output CSV filename
+
+    Returns:
+        DataFrame: Exported asset data or None
+    """
+    print("\n--- Asset Export (All Assets) ---")
+
+    asset_data = []
+
+    try:
+        # Export all assets without filters
+        assets_iterator = tio.exports.assets()
+
+        print("Export job started, downloading data...")
+
+        for asset in assets_iterator:
+            # Flatten relevant fields for CSV output
+            ipv4s = asset.get('ipv4s') or []
+            hostnames = asset.get('hostnames') or []
+            os_list = asset.get('operating_system') or []
+
+            flat_asset = {
+                'id': asset.get('id'),
+                'ipv4': ipv4s[0] if ipv4s else '',
+                'hostname': hostnames[0] if hostnames else '',
+                'os': os_list[0] if os_list else 'Unknown',
+                'exposure_score': asset.get('exposure_score', 0),
+                'acr_score': asset.get('acr_score', 0),
+                'tags': str(asset.get('tags', []))
+            }
+            asset_data.append(flat_asset)
+
+        if not asset_data:
+            print("No assets found.")
+            return None
+
+        df = pd.DataFrame(asset_data)
+        df.to_csv(output_file, index=False)
+
+        print(f"{len(df)} assets exported to '{output_file}'")
+        return df
+
+    except TioExportsError as e:
+        print(f"Export job error: {e}")
+    except Exception as e:
+        print(f"Unexpected error: {e}")
+
+    return None
+
+
+# ==========================================
+# ASSET INFO LOOKUP
+# ==========================================
+
+def get_asset_info(tio, hostname):
+    """
+    Retrieves detailed asset information by hostname and displays
+    it in human-friendly JSON format.
+
+    Args:
+        tio: TenableIO client instance
+        hostname: Asset hostname to search for
+
+    Returns:
+        dict: Asset details or None
+    """
+    print(f"\n--- Asset Info: {hostname} ---")
+
+    try:
+        # Search through assets to find matching hostname
+        asset_uuid = None
+
+        for asset in tio.assets.list():
+            asset_hostnames = asset.get('hostnames') or []
+            # Case-insensitive match
+            if any(h.lower() == hostname.lower() for h in asset_hostnames):
+                asset_uuid = asset.get('id')
+                break
+
+        if not asset_uuid:
+            print(f"Asset with hostname '{hostname}' not found.")
+            return None
+
+        # Get detailed asset information
+        details = tio.assets.details(asset_uuid)
+
+        # Format human-friendly output
+        friendly_output = {
+            'Asset ID': details.get('id'),
+            'Hostname': (details.get('hostnames') or ['N/A'])[0],
+            'FQDN': (details.get('fqdns') or ['N/A'])[0],
+            'IPv4 Addresses': details.get('ipv4s') or [],
+            'IPv6 Addresses': details.get('ipv6s') or [],
+            'MAC Addresses': details.get('mac_addresses') or [],
+            'Operating System': (details.get('operating_systems') or ['Unknown'])[0],
+            'System Type': details.get('system_types') or [],
+            'Network': details.get('network_name', 'Default'),
+            'Exposure Score (AES)': details.get('exposure_score', 'N/A'),
+            'ACR Score': details.get('acr_score', 'N/A'),
+            'First Seen': details.get('first_seen', 'N/A'),
+            'Last Seen': details.get('last_seen', 'N/A'),
+            'Last Authenticated Scan': details.get('last_authenticated_scan_date', 'N/A'),
+            'Last Licensed Scan': details.get('last_licensed_scan_date', 'N/A'),
+            'Has Agent': details.get('has_agent', False),
+            'Agent Name': details.get('agent_names') or [],
+            'Sources': details.get('sources') or [],
+            'Tags': [
+                f"{t.get('key')}:{t.get('value')}"
+                for t in (details.get('tags') or [])
+            ]
+        }
+
+        print(json.dumps(friendly_output, indent=2, default=str))
+        return details
+
+    except Exception as e:
+        print(f"Error retrieving asset info: {e}")
+        return None
 
 
 # ==========================================
