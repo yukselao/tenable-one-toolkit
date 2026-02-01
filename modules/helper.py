@@ -210,14 +210,15 @@ def export_all_assets(tio, output_file='assets.csv'):
 # ASSET INFO LOOKUP
 # ==========================================
 
-def get_asset_info(tio, hostname):
+def get_asset_info(tio, hostname, csv_file='assets.csv'):
     """
-    Retrieves detailed asset information by hostname and displays
-    it in human-friendly JSON format.
+    Retrieves detailed asset information by hostname.
+    First searches in CSV file, then tries API for full details.
 
     Args:
         tio: TenableIO client instance
         hostname: Asset hostname to search for
+        csv_file: Path to exported assets CSV file
 
     Returns:
         dict: Asset details or None
@@ -225,65 +226,99 @@ def get_asset_info(tio, hostname):
     print(f"\n--- Asset Info: {hostname} ---")
 
     try:
-        # Search through assets to find matching hostname
         asset_uuid = None
+        csv_data = None
 
-        for asset in tio.assets.list():
-            # assets.list() returns 'hostname' (list), 'fqdn' (list), 'netbios_name' (list)
-            asset_hostnames = asset.get('hostname') or []
-            asset_fqdns = asset.get('fqdn') or []
-            asset_netbios = asset.get('netbios_name') or []
+        # First try to find in CSV (more complete dataset)
+        try:
+            df = pd.read_csv(csv_file)
+            hostname_lower = hostname.lower()
 
-            # Combine all possible name fields for matching
-            all_names = asset_hostnames + asset_fqdns + asset_netbios
+            for _, row in df.iterrows():
+                row_hostname = str(row.get('hostname', '')).lower()
+                row_ipv4 = str(row.get('ipv4', '')).lower()
 
-            # Case-insensitive match
-            if any(h.lower() == hostname.lower() for h in all_names):
-                asset_uuid = asset.get('id')
-                break
+                if hostname_lower == row_hostname or hostname_lower == row_ipv4:
+                    asset_uuid = row.get('id')
+                    csv_data = row
+                    break
+
+        except FileNotFoundError:
+            print(f"Note: CSV file '{csv_file}' not found, searching via API only...")
+
+        # If not found in CSV, try API
+        if not asset_uuid:
+            for asset in tio.assets.list():
+                asset_hostnames = asset.get('hostname') or []
+                asset_fqdns = asset.get('fqdn') or []
+                asset_netbios = asset.get('netbios_name') or []
+                asset_ipv4s = asset.get('ipv4') or []
+
+                all_names = asset_hostnames + asset_fqdns + asset_netbios + asset_ipv4s
+
+                if any(h.lower() == hostname.lower() for h in all_names):
+                    asset_uuid = asset.get('id')
+                    break
 
         if not asset_uuid:
             print(f"Asset with hostname '{hostname}' not found.")
             return None
 
-        # Get detailed asset information
-        details = tio.assets.details(asset_uuid)
+        # Try to get detailed info via API
+        try:
+            details = tio.assets.details(asset_uuid)
 
-        # Extract data with correct field names
-        hostname_list = details.get('hostname') or []
-        fqdn_list = details.get('fqdn') or []
-        os_list = details.get('operating_system') or []
-        system_type_list = details.get('system_type') or []
+            hostname_list = details.get('hostname') or []
+            fqdn_list = details.get('fqdn') or []
+            os_list = details.get('operating_system') or []
+            system_type_list = details.get('system_type') or []
 
-        # Format human-friendly output
-        friendly_output = {
-            'Asset ID': details.get('id'),
-            'Name': details.get('name', 'N/A'),
-            'Hostname': hostname_list[0] if hostname_list else 'N/A',
-            'FQDN': fqdn_list[0] if fqdn_list else 'N/A',
-            'IPv4 Addresses': details.get('ipv4') or [],
-            'IPv6 Addresses': details.get('ipv6') or [],
-            'MAC Addresses': details.get('mac_address') or [],
-            'Operating System': os_list[0] if os_list else 'Unknown',
-            'System Type': system_type_list,
-            'Network': 'Default',
-            'Exposure Score (AES)': details.get('exposure_score') or details.get('aes_score_v3') or 'N/A',
-            'ACR Score': details.get('acr_score') or details.get('acr_score_v3') or 'N/A',
-            'First Seen': details.get('first_seen', 'N/A'),
-            'Last Seen': details.get('last_seen', 'N/A'),
-            'Last Authenticated Scan': details.get('last_authenticated_scan_date') or 'N/A',
-            'Last Licensed Scan': details.get('last_licensed_scan_date') or 'N/A',
-            'Has Agent': details.get('has_agent', False),
-            'Agent Name': details.get('agent_name') or [],
-            'Sources': [s.get('name') for s in (details.get('sources') or [])],
-            'Tags': [
-                f"{t.get('tag_key')}:{t.get('tag_value')}"
-                for t in (details.get('tags') or [])
-            ]
-        }
+            friendly_output = {
+                'Asset ID': details.get('id'),
+                'Name': details.get('name', 'N/A'),
+                'Hostname': hostname_list[0] if hostname_list else 'N/A',
+                'FQDN': fqdn_list[0] if fqdn_list else 'N/A',
+                'IPv4 Addresses': details.get('ipv4') or [],
+                'IPv6 Addresses': details.get('ipv6') or [],
+                'MAC Addresses': details.get('mac_address') or [],
+                'Operating System': os_list[0] if os_list else 'Unknown',
+                'System Type': system_type_list,
+                'Network': 'Default',
+                'Exposure Score (AES)': details.get('exposure_score') or details.get('aes_score_v3') or 'N/A',
+                'ACR Score': details.get('acr_score') or details.get('acr_score_v3') or 'N/A',
+                'First Seen': details.get('first_seen', 'N/A'),
+                'Last Seen': details.get('last_seen', 'N/A'),
+                'Last Authenticated Scan': details.get('last_authenticated_scan_date') or 'N/A',
+                'Last Licensed Scan': details.get('last_licensed_scan_date') or 'N/A',
+                'Has Agent': details.get('has_agent', False),
+                'Agent Name': details.get('agent_name') or [],
+                'Sources': [s.get('name') for s in (details.get('sources') or [])],
+                'Tags': [
+                    f"{t.get('tag_key')}:{t.get('tag_value')}"
+                    for t in (details.get('tags') or [])
+                ]
+            }
 
-        print(json.dumps(friendly_output, indent=2, default=str))
-        return details
+            print(json.dumps(friendly_output, indent=2, default=str))
+            return details
+
+        except Exception:
+            # If API details fail, use CSV data
+            if csv_data is not None:
+                friendly_output = {
+                    'Asset ID': csv_data.get('id', 'N/A'),
+                    'Hostname': csv_data.get('hostname', 'N/A'),
+                    'IPv4': csv_data.get('ipv4', 'N/A'),
+                    'Operating System': csv_data.get('os', 'Unknown'),
+                    'Exposure Score (AES)': csv_data.get('exposure_score', 'N/A'),
+                    'ACR Score': csv_data.get('acr_score', 'N/A'),
+                    'Tags': csv_data.get('tags', 'N/A'),
+                    'Note': 'Limited data from CSV (API details unavailable)'
+                }
+                print(json.dumps(friendly_output, indent=2, default=str))
+                return friendly_output
+
+            raise
 
     except Exception as e:
         print(f"Error retrieving asset info: {e}")
@@ -420,13 +455,15 @@ def get_plugin_info(tio, plugin_id):
 # ASSET SEARCH
 # ==========================================
 
-def search_assets(tio, query):
+def search_assets(tio, query, csv_file='assets.csv'):
     """
-    Search assets by IP address or hostname.
+    Search assets by IP address or hostname from exported CSV file.
+    Falls back to API if CSV not found.
 
     Args:
         tio: TenableIO client instance
         query: Search query (IP address or hostname)
+        csv_file: Path to exported assets CSV file
 
     Returns:
         list: Matching assets
@@ -437,31 +474,48 @@ def search_assets(tio, query):
         matches = []
         query_lower = query.lower()
 
-        for asset in tio.assets.list():
-            # Get all searchable fields
-            hostnames = asset.get('hostname') or []
-            fqdns = asset.get('fqdn') or []
-            netbios = asset.get('netbios_name') or []
-            ipv4s = asset.get('ipv4') or []
-            ipv6s = asset.get('ipv6') or []
+        # Try to load from CSV first (more complete data)
+        try:
+            df = pd.read_csv(csv_file)
+            print(f"Searching in '{csv_file}'...")
 
-            # Combine all searchable fields
-            all_fields = hostnames + fqdns + netbios + ipv4s + ipv6s
+            for _, row in df.iterrows():
+                # Search in hostname, ipv4, and id columns
+                searchable = f"{row.get('hostname', '')} {row.get('ipv4', '')} {row.get('id', '')}".lower()
 
-            # Case-insensitive partial match
-            if any(query_lower in str(field).lower() for field in all_fields):
-                match_info = {
-                    'id': asset.get('id'),
-                    'hostname': hostnames[0] if hostnames else 'N/A',
-                    'fqdn': fqdns[0] if fqdns else 'N/A',
-                    'ipv4': ipv4s[0] if ipv4s else 'N/A',
-                    'ipv6': ipv6s[0] if ipv6s else 'N/A',
-                    'operating_system': (asset.get('operating_system') or ['Unknown'])[0] if isinstance(asset.get('operating_system'), list) else 'Unknown',
-                    'exposure_score': asset.get('exposure_score', 'N/A'),
-                    'acr_score': asset.get('acr_score', 'N/A'),
-                    'last_seen': asset.get('last_seen', 'N/A')
-                }
-                matches.append(match_info)
+                if query_lower in searchable:
+                    match_info = {
+                        'id': row.get('id', 'N/A'),
+                        'hostname': row.get('hostname', 'N/A'),
+                        'ipv4': row.get('ipv4', 'N/A'),
+                        'os': row.get('os', 'Unknown'),
+                        'exposure_score': row.get('exposure_score', 'N/A'),
+                        'acr_score': row.get('acr_score', 'N/A')
+                    }
+                    matches.append(match_info)
+
+        except FileNotFoundError:
+            print(f"CSV file '{csv_file}' not found. Searching via API...")
+            # Fall back to API
+            for asset in tio.assets.list():
+                hostnames = asset.get('hostname') or []
+                fqdns = asset.get('fqdn') or []
+                netbios = asset.get('netbios_name') or []
+                ipv4s = asset.get('ipv4') or []
+                ipv6s = asset.get('ipv6') or []
+
+                all_fields = hostnames + fqdns + netbios + ipv4s + ipv6s
+
+                if any(query_lower in str(field).lower() for field in all_fields):
+                    match_info = {
+                        'id': asset.get('id'),
+                        'hostname': hostnames[0] if hostnames else 'N/A',
+                        'ipv4': ipv4s[0] if ipv4s else 'N/A',
+                        'os': (asset.get('operating_system') or ['Unknown'])[0] if isinstance(asset.get('operating_system'), list) else 'Unknown',
+                        'exposure_score': asset.get('exposure_score', 'N/A'),
+                        'acr_score': asset.get('acr_score', 'N/A')
+                    }
+                    matches.append(match_info)
 
         if not matches:
             print(f"No assets found matching '{query}'")
@@ -471,7 +525,7 @@ def search_assets(tio, query):
         output = {
             'Query': query,
             'Total Matches': len(matches),
-            'Assets': matches[:50]  # Limit to first 50
+            'Assets': matches[:50]
         }
 
         if len(matches) > 50:

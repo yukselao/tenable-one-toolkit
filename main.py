@@ -196,13 +196,13 @@ def main():
         )
 
     if args.asset_info:
-        get_asset_info(tio, args.asset_info)
+        get_asset_info(tio, args.asset_info, args.input)
 
     if args.plugin_info:
         get_plugin_info(tio, args.plugin_info)
 
     if args.search_assets:
-        search_assets(tio, args.search_assets)
+        search_assets(tio, args.search_assets, args.input)
 
     if args.top_assets or args.all:
         if df_assets is None:
