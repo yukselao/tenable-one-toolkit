@@ -44,10 +44,10 @@ def parse_args():
 Examples:
   python main.py --list-scans
   python main.py --export-all -o all_assets.parquet
-  python main.py --export-assets --tag-category OS --tag-value Linux -o linux.parquet
-  python main.py --asset-info se-dc1 -i all_assets.parquet
-  python main.py --search-assets 192.168.15 -i all_assets.parquet
-  python main.py --plugin-info 10114
+  python main.py --export-assets --tag-category tom --tag-value 'linux servers' -o linux.parquet
+  python main.py --asset-info se-dc1 -i all_assets.parquet --limit 10
+  python main.py --search-assets 192.168.15 -i all_assets.parquet --limit 0
+  python main.py --plugin-info 10114 --limit 50
   python main.py --top-assets -i all_assets.parquet --top 10
   python main.py --to-csv -i all_assets.parquet
   python main.py --to-json -i all_assets.parquet -o assets.json
@@ -155,6 +155,13 @@ Examples:
         help='Number of top assets to display (default: 5)'
     )
 
+    parser.add_argument(
+        '--limit',
+        type=int,
+        default=30,
+        help='Limit output items (vulns, search results). 0 or -1 for unlimited (default: 30)'
+    )
+
     return parser.parse_args()
 
 
@@ -213,13 +220,13 @@ def main():
         )
 
     if args.asset_info:
-        get_asset_info(tio, args.asset_info, args.input)
+        get_asset_info(tio, args.asset_info, args.input, args.limit)
 
     if args.plugin_info:
-        get_plugin_info(tio, args.plugin_info)
+        get_plugin_info(tio, args.plugin_info, args.limit)
 
     if args.search_assets:
-        search_assets(tio, args.search_assets, args.input)
+        search_assets(tio, args.search_assets, args.input, args.limit)
 
     if args.top_assets or args.all:
         if df_assets is None:

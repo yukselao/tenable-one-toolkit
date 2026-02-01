@@ -88,10 +88,10 @@ python main.py --search-assets 192.168.15 -i all_assets.parquet
 python main.py --search-assets dc -i all_assets.parquet
 
 # 7. Investigate a critical vulnerability
-python main.py --plugin-info 10114
+python main.py --plugin-info 10114 --limit 10
 
 # 8. Tag-based filtering - Specific group
-python main.py --export-assets --tag-category OS --tag-value Linux -o linux.parquet
+python main.py --export-assets --tag-category tom --tag-value 'linux servers' -o linux.parquet
 
 # 9. Top risks in that group
 python main.py --top-assets -i linux.parquet --top 5
@@ -124,10 +124,10 @@ python main.py --list-scans
 python main.py --export-assets --tag-category Location --tag-value London
 
 # Custom output file
-python main.py --export-assets --tag-category OS --tag-value Linux -o linux.parquet
+python main.py --export-assets --tag-category tom --tag-value 'linux servers' -o linux.parquet
 
 # Export as CSV if needed
-python main.py --export-assets --tag-category OS --tag-value Linux -o linux.csv
+python main.py --export-assets --tag-category tom --tag-value 'linux servers' -o linux.csv
 ```
 
 ### Export all assets
@@ -146,19 +146,29 @@ python main.py --export-all -o all_assets.parquet
 # First export assets, then search in the exported file
 python main.py --export-all -o all_assets.parquet
 
-# Get detailed asset information including vulnerabilities
+# Get detailed asset information including vulnerabilities (default: top 30)
 python main.py --asset-info se-dc1 -i all_assets.parquet
-python main.py --asset-info 192.168.15.101 -i all_assets.parquet
+
+# Limit vulnerabilities to top 10
+python main.py --asset-info se-dc1 -i all_assets.parquet --limit 10
+
+# Show all vulnerabilities (no limit)
+python main.py --asset-info se-dc1 -i all_assets.parquet --limit 0
 ```
 
-Output includes: asset details, tags, exposure scores, and top 30 vulnerabilities sorted by severity (Critical → High → Medium → Low → Info) with a summary count.
+Output includes: asset details, tags, exposure scores, and vulnerabilities sorted by severity (Critical → High → Medium → Low → Info) with a summary count.
 
 ### Get plugin info and affected assets
 
 ```bash
 # Get plugin details (CVE, CVSS, solution) and list of affected assets
 python main.py --plugin-info 10114
-python main.py --plugin-info 19506
+
+# Limit affected assets to 50
+python main.py --plugin-info 10114 --limit 50
+
+# Show all affected assets
+python main.py --plugin-info 10114 --limit 0
 ```
 
 ### Search assets
@@ -169,6 +179,12 @@ python main.py --export-all -o all_assets.parquet
 
 # Search by IP address (partial match)
 python main.py --search-assets 192.168.15 -i all_assets.parquet
+
+# Search with custom limit
+python main.py --search-assets dc -i all_assets.parquet --limit 10
+
+# Search with no limit (show all matches)
+python main.py --search-assets 192.168 -i all_assets.parquet --limit 0
 
 # Search by hostname (partial match)
 python main.py --search-assets win-server -i all_assets.parquet
@@ -212,7 +228,7 @@ python main.py --to-json -i all_assets.parquet -o exported_assets.json
 | `--list-scans` | | List all completed scans | |
 | `--export-assets` | | Export assets filtered by tag | |
 | `--export-all` | | Export all assets without filtering | |
-| `--asset-info` | | Get asset details by hostname (JSON) | |
+| `--asset-info` | | Get asset details + vulnerabilities (JSON) | |
 | `--plugin-info` | | Get plugin details and affected assets | |
 | `--search-assets` | | Search assets by IP or hostname | |
 | `--top-assets` | | Display top exposed assets | |
@@ -224,6 +240,7 @@ python main.py --to-json -i all_assets.parquet -o exported_assets.json
 | `--output` | `-o` | Output file path (.parquet, .csv, .json) | `assets.parquet` |
 | `--input` | `-i` | Input file for analysis | `assets.parquet` |
 | `--top` | | Number of top assets | `5` |
+| `--limit` | | Limit output items (0 or -1 = unlimited) | `30` |
 
 ## Project Structure
 

@@ -320,7 +320,7 @@ def export_all_assets(tio, output_file='assets.parquet'):
 # ASSET INFO LOOKUP
 # ==========================================
 
-def get_asset_info(tio, hostname, data_file='assets.parquet'):
+def get_asset_info(tio, hostname, data_file='assets.parquet', limit=30):
     """
     Retrieves detailed asset information by hostname.
     First searches in data file, then tries API for full details.
@@ -329,6 +329,7 @@ def get_asset_info(tio, hostname, data_file='assets.parquet'):
         tio: TenableIO client instance
         hostname: Asset hostname to search for
         data_file: Path to exported assets file (.parquet or .csv)
+        limit: Max vulnerabilities to display (0 or -1 for unlimited)
 
     Returns:
         dict: Asset details or None
@@ -443,10 +444,14 @@ def get_asset_info(tio, hostname, data_file='assets.parquet'):
 
                 friendly_output['Vulnerability Count'] = len(vulns)
                 friendly_output['Vulnerability Summary'] = severity_counts
-                friendly_output['Vulnerabilities'] = vulns[:30]  # Limit to top 30
 
-                if len(vulns) > 30:
-                    friendly_output['Vulnerabilities Note'] = f'Showing top 30 of {len(vulns)} vulnerabilities (sorted by severity)'
+                # Apply limit (0 or -1 means unlimited)
+                if limit <= 0:
+                    friendly_output['Vulnerabilities'] = vulns
+                else:
+                    friendly_output['Vulnerabilities'] = vulns[:limit]
+                    if len(vulns) > limit:
+                        friendly_output['Vulnerabilities Note'] = f'Showing top {limit} of {len(vulns)} vulnerabilities (sorted by severity)'
 
             except Exception as vuln_error:
                 friendly_output['Vulnerabilities'] = f'Could not retrieve: {vuln_error}'
@@ -517,13 +522,14 @@ def get_top_exposed_assets(df, top_n=5):
 # PLUGIN INFO & AFFECTED ASSETS
 # ==========================================
 
-def get_plugin_info(tio, plugin_id):
+def get_plugin_info(tio, plugin_id, limit=30):
     """
     Retrieves plugin details and lists affected assets.
 
     Args:
         tio: TenableIO client instance
         plugin_id: Plugin ID to look up (e.g., 10114)
+        limit: Max affected assets to display (0 or -1 for unlimited)
 
     Returns:
         dict: Plugin details and affected assets
@@ -588,12 +594,16 @@ def get_plugin_info(tio, plugin_id):
             'See Also': attributes.get('see_also', 'N/A'),
             'Plugin Publication Date': attributes.get('plugin_publication_date', 'N/A'),
             'Plugin Modification Date': attributes.get('plugin_modification_date', 'N/A'),
-            'Affected Assets Count': len(affected_assets),
-            'Affected Assets': affected_assets[:20]  # Limit to first 20
+            'Affected Assets Count': len(affected_assets)
         }
 
-        if len(affected_assets) > 20:
-            friendly_output['Note'] = f'Showing first 20 of {len(affected_assets)} affected assets'
+        # Apply limit (0 or -1 means unlimited)
+        if limit <= 0:
+            friendly_output['Affected Assets'] = affected_assets
+        else:
+            friendly_output['Affected Assets'] = affected_assets[:limit]
+            if len(affected_assets) > limit:
+                friendly_output['Note'] = f'Showing first {limit} of {len(affected_assets)} affected assets'
 
         print(json.dumps(friendly_output, indent=2, default=str))
         return friendly_output
@@ -607,7 +617,7 @@ def get_plugin_info(tio, plugin_id):
 # ASSET SEARCH
 # ==========================================
 
-def search_assets(tio, query, data_file='assets.parquet'):
+def search_assets(tio, query, data_file='assets.parquet', limit=30):
     """
     Search assets by IP address or hostname from exported data file.
     Falls back to API if file not found.
@@ -616,6 +626,7 @@ def search_assets(tio, query, data_file='assets.parquet'):
         tio: TenableIO client instance
         query: Search query (IP address or hostname)
         data_file: Path to exported assets file (.parquet or .csv)
+        limit: Max results to display (0 or -1 for unlimited)
 
     Returns:
         list: Matching assets
@@ -676,12 +687,16 @@ def search_assets(tio, query, data_file='assets.parquet'):
         # Format output
         output = {
             'Query': query,
-            'Total Matches': len(matches),
-            'Assets': matches[:50]
+            'Total Matches': len(matches)
         }
 
-        if len(matches) > 50:
-            output['Note'] = f'Showing first 50 of {len(matches)} matches'
+        # Apply limit (0 or -1 means unlimited)
+        if limit <= 0:
+            output['Assets'] = matches
+        else:
+            output['Assets'] = matches[:limit]
+            if len(matches) > limit:
+                output['Note'] = f'Showing first {limit} of {len(matches)} matches'
 
         print(json.dumps(output, indent=2, default=str))
         return matches
