@@ -229,9 +229,16 @@ def get_asset_info(tio, hostname):
         asset_uuid = None
 
         for asset in tio.assets.list():
-            asset_hostnames = asset.get('hostnames') or []
+            # assets.list() returns 'hostname' (list), 'fqdn' (list), 'netbios_name' (list)
+            asset_hostnames = asset.get('hostname') or []
+            asset_fqdns = asset.get('fqdn') or []
+            asset_netbios = asset.get('netbios_name') or []
+
+            # Combine all possible name fields for matching
+            all_names = asset_hostnames + asset_fqdns + asset_netbios
+
             # Case-insensitive match
-            if any(h.lower() == hostname.lower() for h in asset_hostnames):
+            if any(h.lower() == hostname.lower() for h in all_names):
                 asset_uuid = asset.get('id')
                 break
 
@@ -242,28 +249,35 @@ def get_asset_info(tio, hostname):
         # Get detailed asset information
         details = tio.assets.details(asset_uuid)
 
+        # Extract data with correct field names
+        hostname_list = details.get('hostname') or []
+        fqdn_list = details.get('fqdn') or []
+        os_list = details.get('operating_system') or []
+        system_type_list = details.get('system_type') or []
+
         # Format human-friendly output
         friendly_output = {
             'Asset ID': details.get('id'),
-            'Hostname': (details.get('hostnames') or ['N/A'])[0],
-            'FQDN': (details.get('fqdns') or ['N/A'])[0],
-            'IPv4 Addresses': details.get('ipv4s') or [],
-            'IPv6 Addresses': details.get('ipv6s') or [],
-            'MAC Addresses': details.get('mac_addresses') or [],
-            'Operating System': (details.get('operating_systems') or ['Unknown'])[0],
-            'System Type': details.get('system_types') or [],
-            'Network': details.get('network_name', 'Default'),
-            'Exposure Score (AES)': details.get('exposure_score', 'N/A'),
-            'ACR Score': details.get('acr_score', 'N/A'),
+            'Name': details.get('name', 'N/A'),
+            'Hostname': hostname_list[0] if hostname_list else 'N/A',
+            'FQDN': fqdn_list[0] if fqdn_list else 'N/A',
+            'IPv4 Addresses': details.get('ipv4') or [],
+            'IPv6 Addresses': details.get('ipv6') or [],
+            'MAC Addresses': details.get('mac_address') or [],
+            'Operating System': os_list[0] if os_list else 'Unknown',
+            'System Type': system_type_list,
+            'Network': 'Default',
+            'Exposure Score (AES)': details.get('exposure_score') or details.get('aes_score_v3') or 'N/A',
+            'ACR Score': details.get('acr_score') or details.get('acr_score_v3') or 'N/A',
             'First Seen': details.get('first_seen', 'N/A'),
             'Last Seen': details.get('last_seen', 'N/A'),
-            'Last Authenticated Scan': details.get('last_authenticated_scan_date', 'N/A'),
-            'Last Licensed Scan': details.get('last_licensed_scan_date', 'N/A'),
+            'Last Authenticated Scan': details.get('last_authenticated_scan_date') or 'N/A',
+            'Last Licensed Scan': details.get('last_licensed_scan_date') or 'N/A',
             'Has Agent': details.get('has_agent', False),
-            'Agent Name': details.get('agent_names') or [],
-            'Sources': details.get('sources') or [],
+            'Agent Name': details.get('agent_name') or [],
+            'Sources': [s.get('name') for s in (details.get('sources') or [])],
             'Tags': [
-                f"{t.get('key')}:{t.get('value')}"
+                f"{t.get('tag_key')}:{t.get('tag_value')}"
                 for t in (details.get('tags') or [])
             ]
         }
