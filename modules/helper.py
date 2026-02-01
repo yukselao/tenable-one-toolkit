@@ -324,3 +324,162 @@ def get_top_exposed_assets(df, top_n=5):
 
     for _, row in top_assets.iterrows():
         print(f"{int(row['exposure_score']):<10} | {row['ipv4']:<15} | {row['hostname']}")
+
+
+# ==========================================
+# PLUGIN INFO & AFFECTED ASSETS
+# ==========================================
+
+def get_plugin_info(tio, plugin_id):
+    """
+    Retrieves plugin details and lists affected assets.
+
+    Args:
+        tio: TenableIO client instance
+        plugin_id: Plugin ID to look up (e.g., 10114)
+
+    Returns:
+        dict: Plugin details and affected assets
+    """
+    print(f"\n--- Plugin Info: {plugin_id} ---")
+
+    try:
+        # Get plugin details
+        plugin = tio.plugins.plugin_details(plugin_id)
+
+        # Convert attributes list to dictionary for easier access
+        # API returns: [{'attribute_name': 'key', 'attribute_value': 'value'}, ...]
+        attributes_list = plugin.get('attributes', [])
+        attributes = {}
+        for attr in attributes_list:
+            key = attr.get('attribute_name')
+            value = attr.get('attribute_value')
+            # Handle multiple values for same key (like cve)
+            if key in attributes:
+                if isinstance(attributes[key], list):
+                    attributes[key].append(value)
+                else:
+                    attributes[key] = [attributes[key], value]
+            else:
+                attributes[key] = value
+
+        # Get affected assets using workbenches API
+        affected_assets = []
+        try:
+            for asset in tio.workbenches.vuln_assets(('plugin.id', 'eq', str(plugin_id))):
+                asset_info = {
+                    'id': asset.get('id'),
+                    'hostname': (asset.get('hostname') or ['N/A'])[0] if isinstance(asset.get('hostname'), list) else asset.get('hostname', 'N/A'),
+                    'ipv4': (asset.get('ipv4') or ['N/A'])[0] if isinstance(asset.get('ipv4'), list) else asset.get('ipv4', 'N/A'),
+                    'fqdn': (asset.get('fqdn') or ['N/A'])[0] if isinstance(asset.get('fqdn'), list) else asset.get('fqdn', 'N/A'),
+                    'operating_system': (asset.get('operating_system') or ['Unknown'])[0] if isinstance(asset.get('operating_system'), list) else asset.get('operating_system', 'Unknown'),
+                    'last_seen': asset.get('last_seen', 'N/A')
+                }
+                affected_assets.append(asset_info)
+        except Exception as e:
+            print(f"Warning: Could not retrieve affected assets: {e}")
+
+        # Get description and truncate if too long
+        description = attributes.get('description', 'N/A')
+        if isinstance(description, str) and len(description) > 500:
+            description = description[:500] + '...'
+
+        # Build human-friendly output
+        friendly_output = {
+            'Plugin ID': plugin.get('id'),
+            'Name': plugin.get('name'),
+            'Family': plugin.get('family_name'),
+            'Severity': attributes.get('risk_factor', 'N/A'),
+            'CVSS Base Score': attributes.get('cvss_base_score', 'N/A'),
+            'CVSS3 Base Score': attributes.get('cvss3_base_score', 'N/A'),
+            'CVSS Vector': attributes.get('cvss_vector', 'N/A'),
+            'Synopsis': attributes.get('synopsis', 'N/A'),
+            'Description': description,
+            'Solution': attributes.get('solution', 'N/A'),
+            'CVE': attributes.get('cve') if isinstance(attributes.get('cve'), list) else [attributes.get('cve')] if attributes.get('cve') else [],
+            'CWE': attributes.get('cwe', 'N/A'),
+            'See Also': attributes.get('see_also', 'N/A'),
+            'Plugin Publication Date': attributes.get('plugin_publication_date', 'N/A'),
+            'Plugin Modification Date': attributes.get('plugin_modification_date', 'N/A'),
+            'Affected Assets Count': len(affected_assets),
+            'Affected Assets': affected_assets[:20]  # Limit to first 20
+        }
+
+        if len(affected_assets) > 20:
+            friendly_output['Note'] = f'Showing first 20 of {len(affected_assets)} affected assets'
+
+        print(json.dumps(friendly_output, indent=2, default=str))
+        return friendly_output
+
+    except Exception as e:
+        print(f"Error retrieving plugin info: {e}")
+        return None
+
+
+# ==========================================
+# ASSET SEARCH
+# ==========================================
+
+def search_assets(tio, query):
+    """
+    Search assets by IP address or hostname.
+
+    Args:
+        tio: TenableIO client instance
+        query: Search query (IP address or hostname)
+
+    Returns:
+        list: Matching assets
+    """
+    print(f"\n--- Asset Search: {query} ---")
+
+    try:
+        matches = []
+        query_lower = query.lower()
+
+        for asset in tio.assets.list():
+            # Get all searchable fields
+            hostnames = asset.get('hostname') or []
+            fqdns = asset.get('fqdn') or []
+            netbios = asset.get('netbios_name') or []
+            ipv4s = asset.get('ipv4') or []
+            ipv6s = asset.get('ipv6') or []
+
+            # Combine all searchable fields
+            all_fields = hostnames + fqdns + netbios + ipv4s + ipv6s
+
+            # Case-insensitive partial match
+            if any(query_lower in str(field).lower() for field in all_fields):
+                match_info = {
+                    'id': asset.get('id'),
+                    'hostname': hostnames[0] if hostnames else 'N/A',
+                    'fqdn': fqdns[0] if fqdns else 'N/A',
+                    'ipv4': ipv4s[0] if ipv4s else 'N/A',
+                    'ipv6': ipv6s[0] if ipv6s else 'N/A',
+                    'operating_system': (asset.get('operating_system') or ['Unknown'])[0] if isinstance(asset.get('operating_system'), list) else 'Unknown',
+                    'exposure_score': asset.get('exposure_score', 'N/A'),
+                    'acr_score': asset.get('acr_score', 'N/A'),
+                    'last_seen': asset.get('last_seen', 'N/A')
+                }
+                matches.append(match_info)
+
+        if not matches:
+            print(f"No assets found matching '{query}'")
+            return []
+
+        # Format output
+        output = {
+            'Query': query,
+            'Total Matches': len(matches),
+            'Assets': matches[:50]  # Limit to first 50
+        }
+
+        if len(matches) > 50:
+            output['Note'] = f'Showing first 50 of {len(matches)} matches'
+
+        print(json.dumps(output, indent=2, default=str))
+        return matches
+
+    except Exception as e:
+        print(f"Error searching assets: {e}")
+        return []

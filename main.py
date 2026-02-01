@@ -10,6 +10,8 @@ Usage:
     python main.py --export-assets --tag-category Location --tag-value London
     python main.py --export-all
     python main.py --asset-info win-2019
+    python main.py --plugin-info 10114
+    python main.py --search-assets 192.168.1
     python main.py --top-assets --input assets.csv
 """
 
@@ -21,6 +23,8 @@ from modules.helper import (
     export_assets_by_tag,
     export_all_assets,
     get_asset_info,
+    get_plugin_info,
+    search_assets,
     get_top_exposed_assets
 )
 
@@ -39,6 +43,9 @@ Examples:
   python main.py --export-assets --tag-category Location --tag-value London
   python main.py --export-all -o all_assets.csv
   python main.py --asset-info win-2019
+  python main.py --plugin-info 10114
+  python main.py --search-assets 192.168.1
+  python main.py --search-assets win-server
   python main.py --top-assets --input assets.csv --top 10
   python main.py --all --tag-category Location --tag-value London
         '''
@@ -68,6 +75,20 @@ Examples:
         type=str,
         metavar='HOSTNAME',
         help='Get detailed asset info by hostname (JSON output)'
+    )
+
+    parser.add_argument(
+        '--plugin-info',
+        type=int,
+        metavar='PLUGIN_ID',
+        help='Get plugin details and affected assets (JSON output)'
+    )
+
+    parser.add_argument(
+        '--search-assets',
+        type=str,
+        metavar='QUERY',
+        help='Search assets by IP address or hostname'
     )
 
     parser.add_argument(
@@ -132,6 +153,8 @@ def main():
         args.export_assets,
         args.export_all,
         args.asset_info,
+        args.plugin_info,
+        args.search_assets,
         args.top_assets,
         args.all
     ])
@@ -147,6 +170,8 @@ def main():
         args.export_assets,
         args.export_all,
         args.asset_info,
+        args.plugin_info,
+        args.search_assets,
         args.all
     ])
 
@@ -172,6 +197,12 @@ def main():
 
     if args.asset_info:
         get_asset_info(tio, args.asset_info)
+
+    if args.plugin_info:
+        get_plugin_info(tio, args.plugin_info)
+
+    if args.search_assets:
+        search_assets(tio, args.search_assets)
 
     if args.top_assets or args.all:
         if df_assets is None:
