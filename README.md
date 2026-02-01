@@ -80,13 +80,13 @@ python main.py --export-all -o all_assets.csv
 python main.py --top-assets -i all_assets.csv --top 10
 
 # 4. Deep dive into a specific asset (pick one from top 10)
-python main.py --asset-info se-dc1
+python main.py --asset-info se-dc1 -i all_assets.csv
 
 # 5. Search assets - By IP
-python main.py --search-assets 192.168.15
+python main.py --search-assets 192.168.15 -i all_assets.csv
 
 # 6. Search assets - By hostname
-python main.py --search-assets dc
+python main.py --search-assets dc -i all_assets.csv
 
 # 7. Investigate a critical vulnerability
 python main.py --plugin-info 10114
@@ -137,9 +137,12 @@ python main.py --export-all -o all_assets.csv
 ### Get asset info by hostname
 
 ```bash
+# First export assets, then search in the exported file
+python main.py --export-all -o all_assets.csv
+
 # Get detailed asset information in JSON format
-python main.py --asset-info win-2019
-python main.py --asset-info websvr.labnet.local
+python main.py --asset-info se-dc1 -i all_assets.csv
+python main.py --asset-info 192.168.15.101 -i all_assets.csv
 ```
 
 ### Get plugin info and affected assets
@@ -153,12 +156,15 @@ python main.py --plugin-info 19506
 ### Search assets
 
 ```bash
+# First export assets, then search in the exported file
+python main.py --export-all -o all_assets.csv
+
 # Search by IP address (partial match)
-python main.py --search-assets 192.168.1
+python main.py --search-assets 192.168.15 -i all_assets.csv
 
 # Search by hostname (partial match)
-python main.py --search-assets win-server
-python main.py --search-assets dc
+python main.py --search-assets win-server -i all_assets.csv
+python main.py --search-assets dc -i all_assets.csv
 ```
 
 ### Display top exposed assets
@@ -233,8 +239,9 @@ Calls `tio.exports.assets()` without any filters to export the entire asset inve
 
 ### 5. Asset Info Lookup (`get_asset_info`)
 
-- Uses `tio.assets.list()` to search for an asset by hostname (case-insensitive match)
-- Once found, retrieves full details via `tio.assets.details(uuid)`
+- First searches in the exported CSV file (specified by `-i` parameter) for more complete data
+- Falls back to API if CSV not found
+- Once asset UUID is found, retrieves full details via `tio.assets.details(uuid)`
 - Outputs human-friendly JSON with key fields: IP addresses, OS, AES/ACR scores, first/last seen dates, tags, etc.
 
 ### 6. Top Assets by AES (`get_top_exposed_assets`)
@@ -250,8 +257,9 @@ Calls `tio.exports.assets()` without any filters to export the entire asset inve
 
 ### 8. Asset Search (`search_assets`)
 
-- Iterates through `tio.assets.list()` and performs partial, case-insensitive matching
-- Searches across hostname, FQDN, NetBIOS name, IPv4, and IPv6 fields
+- First searches in the exported CSV file (specified by `-i` parameter) for more complete data
+- Falls back to API if CSV not found
+- Performs partial, case-insensitive matching across hostname, IPv4, and ID fields
 - Returns up to 50 matching assets with key details
 
 ## Output Example
