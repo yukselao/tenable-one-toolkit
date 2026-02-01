@@ -19,6 +19,43 @@ from tenable.errors import TioExportsError
 
 
 # ==========================================
+# FILE I/O HELPERS
+# ==========================================
+
+def save_dataframe(df, file_path):
+    """
+    Save DataFrame to file. Format is determined by file extension.
+    Supports: .parquet (default), .csv
+
+    Args:
+        df: pandas DataFrame
+        file_path: Output file path
+    """
+    if file_path.endswith('.csv'):
+        df.to_csv(file_path, index=False)
+    else:
+        # Default to parquet for better data integrity
+        df.to_parquet(file_path, index=False)
+
+
+def load_dataframe(file_path):
+    """
+    Load DataFrame from file. Format is determined by file extension.
+    Supports: .parquet (default), .csv
+
+    Args:
+        file_path: Input file path
+
+    Returns:
+        pandas DataFrame
+    """
+    if file_path.endswith('.csv'):
+        return pd.read_csv(file_path)
+    else:
+        return pd.read_parquet(file_path)
+
+
+# ==========================================
 # CLIENT CONNECTION
 # ==========================================
 
@@ -83,16 +120,16 @@ def list_successful_scans(tio):
 # ASSET EXPORT
 # ==========================================
 
-def export_assets_by_tag(tio, tag_category, tag_value, output_file='assets.csv'):
+def export_assets_by_tag(tio, tag_category, tag_value, output_file='assets.parquet'):
     """
     Filters assets by the specified tag category and value,
-    then exports them to a CSV file.
+    then exports them to a file (parquet or csv based on extension).
 
     Args:
         tio: TenableIO client instance
         tag_category: Tag category to filter (e.g., "Location")
         tag_value: Tag value to filter (e.g., "London")
-        output_file: Output CSV filename
+        output_file: Output filename (.parquet or .csv)
 
     Returns:
         DataFrame: Exported asset data or None
@@ -111,7 +148,7 @@ def export_assets_by_tag(tio, tag_category, tag_value, output_file='assets.csv')
         print("Export job started, downloading data...")
 
         for asset in assets_iterator:
-            # Flatten relevant fields for CSV output
+            # Flatten relevant fields
             # Handle empty lists safely
             ipv4s = asset.get('ipv4s') or []
             hostnames = asset.get('hostnames') or []
@@ -124,7 +161,7 @@ def export_assets_by_tag(tio, tag_category, tag_value, output_file='assets.csv')
                 'os': os_list[0] if os_list else 'Unknown',
                 'exposure_score': asset.get('exposure_score', 0),  # AES score
                 'acr_score': asset.get('acr_score', 0),            # ACR score
-                'tags': str(asset.get('tags', []))
+                'tags': asset.get('tags', [])  # Keep as list for parquet
             }
             asset_data.append(flat_asset)
 
@@ -133,7 +170,7 @@ def export_assets_by_tag(tio, tag_category, tag_value, output_file='assets.csv')
             return None
 
         df = pd.DataFrame(asset_data)
-        df.to_csv(output_file, index=False)
+        save_dataframe(df, output_file)
 
         print(f"{len(df)} assets exported to '{output_file}'")
         return df
@@ -150,13 +187,13 @@ def export_assets_by_tag(tio, tag_category, tag_value, output_file='assets.csv')
 # EXPORT ALL ASSETS
 # ==========================================
 
-def export_all_assets(tio, output_file='assets.csv'):
+def export_all_assets(tio, output_file='assets.parquet'):
     """
     Exports all assets without any tag filtering.
 
     Args:
         tio: TenableIO client instance
-        output_file: Output CSV filename
+        output_file: Output filename (.parquet or .csv)
 
     Returns:
         DataFrame: Exported asset data or None
@@ -172,7 +209,7 @@ def export_all_assets(tio, output_file='assets.csv'):
         print("Export job started, downloading data...")
 
         for asset in assets_iterator:
-            # Flatten relevant fields for CSV output
+            # Flatten relevant fields
             ipv4s = asset.get('ipv4s') or []
             hostnames = asset.get('hostnames') or []
             os_list = asset.get('operating_system') or []
@@ -184,7 +221,7 @@ def export_all_assets(tio, output_file='assets.csv'):
                 'os': os_list[0] if os_list else 'Unknown',
                 'exposure_score': asset.get('exposure_score', 0),
                 'acr_score': asset.get('acr_score', 0),
-                'tags': str(asset.get('tags', []))
+                'tags': asset.get('tags', [])  # Keep as list for parquet
             }
             asset_data.append(flat_asset)
 
@@ -193,7 +230,7 @@ def export_all_assets(tio, output_file='assets.csv'):
             return None
 
         df = pd.DataFrame(asset_data)
-        df.to_csv(output_file, index=False)
+        save_dataframe(df, output_file)
 
         print(f"{len(df)} assets exported to '{output_file}'")
         return df
@@ -210,15 +247,15 @@ def export_all_assets(tio, output_file='assets.csv'):
 # ASSET INFO LOOKUP
 # ==========================================
 
-def get_asset_info(tio, hostname, csv_file='assets.csv'):
+def get_asset_info(tio, hostname, data_file='assets.parquet'):
     """
     Retrieves detailed asset information by hostname.
-    First searches in CSV file, then tries API for full details.
+    First searches in data file, then tries API for full details.
 
     Args:
         tio: TenableIO client instance
         hostname: Asset hostname to search for
-        csv_file: Path to exported assets CSV file
+        data_file: Path to exported assets file (.parquet or .csv)
 
     Returns:
         dict: Asset details or None
@@ -227,11 +264,11 @@ def get_asset_info(tio, hostname, csv_file='assets.csv'):
 
     try:
         asset_uuid = None
-        csv_data = None
+        file_data = None
 
-        # First try to find in CSV (more complete dataset)
+        # First try to find in data file (more complete dataset)
         try:
-            df = pd.read_csv(csv_file)
+            df = load_dataframe(data_file)
             hostname_lower = hostname.lower()
 
             for _, row in df.iterrows():
@@ -240,11 +277,11 @@ def get_asset_info(tio, hostname, csv_file='assets.csv'):
 
                 if hostname_lower == row_hostname or hostname_lower == row_ipv4:
                     asset_uuid = row.get('id')
-                    csv_data = row
+                    file_data = row
                     break
 
         except FileNotFoundError:
-            print(f"Note: CSV file '{csv_file}' not found, searching via API only...")
+            print(f"Note: Data file '{data_file}' not found, searching via API only...")
 
         # If not found in CSV, try API
         if not asset_uuid:
@@ -303,17 +340,17 @@ def get_asset_info(tio, hostname, csv_file='assets.csv'):
             return details
 
         except Exception:
-            # If API details fail, use CSV data
-            if csv_data is not None:
+            # If API details fail, use file data
+            if file_data is not None:
                 friendly_output = {
-                    'Asset ID': csv_data.get('id', 'N/A'),
-                    'Hostname': csv_data.get('hostname', 'N/A'),
-                    'IPv4': csv_data.get('ipv4', 'N/A'),
-                    'Operating System': csv_data.get('os', 'Unknown'),
-                    'Exposure Score (AES)': csv_data.get('exposure_score', 'N/A'),
-                    'ACR Score': csv_data.get('acr_score', 'N/A'),
-                    'Tags': csv_data.get('tags', 'N/A'),
-                    'Note': 'Limited data from CSV (API details unavailable)'
+                    'Asset ID': file_data.get('id', 'N/A'),
+                    'Hostname': file_data.get('hostname', 'N/A'),
+                    'IPv4': file_data.get('ipv4', 'N/A'),
+                    'Operating System': file_data.get('os', 'Unknown'),
+                    'Exposure Score (AES)': file_data.get('exposure_score', 'N/A'),
+                    'ACR Score': file_data.get('acr_score', 'N/A'),
+                    'Tags': file_data.get('tags', 'N/A'),
+                    'Note': 'Limited data from file (API details unavailable)'
                 }
                 print(json.dumps(friendly_output, indent=2, default=str))
                 return friendly_output
@@ -455,15 +492,15 @@ def get_plugin_info(tio, plugin_id):
 # ASSET SEARCH
 # ==========================================
 
-def search_assets(tio, query, csv_file='assets.csv'):
+def search_assets(tio, query, data_file='assets.parquet'):
     """
-    Search assets by IP address or hostname from exported CSV file.
-    Falls back to API if CSV not found.
+    Search assets by IP address or hostname from exported data file.
+    Falls back to API if file not found.
 
     Args:
         tio: TenableIO client instance
         query: Search query (IP address or hostname)
-        csv_file: Path to exported assets CSV file
+        data_file: Path to exported assets file (.parquet or .csv)
 
     Returns:
         list: Matching assets
@@ -474,10 +511,10 @@ def search_assets(tio, query, csv_file='assets.csv'):
         matches = []
         query_lower = query.lower()
 
-        # Try to load from CSV first (more complete data)
+        # Try to load from data file first (more complete data)
         try:
-            df = pd.read_csv(csv_file)
-            print(f"Searching in '{csv_file}'...")
+            df = load_dataframe(data_file)
+            print(f"Searching in '{data_file}'...")
 
             for _, row in df.iterrows():
                 # Search in hostname, ipv4, and id columns
@@ -495,7 +532,7 @@ def search_assets(tio, query, csv_file='assets.csv'):
                     matches.append(match_info)
 
         except FileNotFoundError:
-            print(f"CSV file '{csv_file}' not found. Searching via API...")
+            print(f"Data file '{data_file}' not found. Searching via API...")
             # Fall back to API
             for asset in tio.assets.list():
                 hostnames = asset.get('hostname') or []

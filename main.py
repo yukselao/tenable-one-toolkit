@@ -8,11 +8,11 @@ export assets, and analyze exposure scores.
 Usage:
     python main.py --list-scans
     python main.py --export-assets --tag-category Location --tag-value London
-    python main.py --export-all
-    python main.py --asset-info win-2019
+    python main.py --export-all -o all_assets.parquet
+    python main.py --asset-info win-2019 -i all_assets.parquet
     python main.py --plugin-info 10114
-    python main.py --search-assets 192.168.1
-    python main.py --top-assets --input assets.csv
+    python main.py --search-assets 192.168.1 -i all_assets.parquet
+    python main.py --top-assets -i all_assets.parquet
 """
 
 import argparse
@@ -25,7 +25,8 @@ from modules.helper import (
     get_asset_info,
     get_plugin_info,
     search_assets,
-    get_top_exposed_assets
+    get_top_exposed_assets,
+    load_dataframe
 )
 
 # Load environment variables from .env file
@@ -40,14 +41,12 @@ def parse_args():
         epilog='''
 Examples:
   python main.py --list-scans
-  python main.py --export-assets --tag-category Location --tag-value London
-  python main.py --export-all -o all_assets.csv
-  python main.py --asset-info win-2019
+  python main.py --export-all -o all_assets.parquet
+  python main.py --export-assets --tag-category OS --tag-value Linux -o linux.parquet
+  python main.py --asset-info se-dc1 -i all_assets.parquet
+  python main.py --search-assets 192.168.15 -i all_assets.parquet
   python main.py --plugin-info 10114
-  python main.py --search-assets 192.168.1
-  python main.py --search-assets win-server
-  python main.py --top-assets --input assets.csv --top 10
-  python main.py --all --tag-category Location --tag-value London
+  python main.py --top-assets -i all_assets.parquet --top 10
         '''
     )
 
@@ -121,16 +120,16 @@ Examples:
     parser.add_argument(
         '-o', '--output',
         type=str,
-        default='assets.csv',
-        help='Output CSV file path (default: assets.csv)'
+        default='assets.parquet',
+        help='Output file path (default: assets.parquet)'
     )
 
-    # Top assets parameters
+    # Input file parameter
     parser.add_argument(
         '-i', '--input',
         type=str,
-        default='assets.csv',
-        help='Input CSV file for top-assets analysis (default: assets.csv)'
+        default='assets.parquet',
+        help='Input file for analysis (default: assets.parquet)'
     )
 
     parser.add_argument(
@@ -207,12 +206,11 @@ def main():
     if args.top_assets or args.all:
         if df_assets is None:
             # Load from file if not already in memory
-            import pandas as pd
             try:
-                df_assets = pd.read_csv(args.input)
+                df_assets = load_dataframe(args.input)
                 print(f"\nLoaded {len(df_assets)} assets from '{args.input}'")
             except FileNotFoundError:
-                print(f"Error: File '{args.input}' not found. Run --export-assets first.")
+                print(f"Error: File '{args.input}' not found. Run --export-all first.")
                 return
 
         get_top_exposed_assets(df_assets, args.top)

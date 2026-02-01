@@ -1,12 +1,11 @@
 # Tenable One Asset Analysis Tool
 
-A CLI tool for interacting with the Tenable One API to list scans, export assets by tags, and analyze asset exposure scores (AES).
+A CLI tool for interacting with the Tenable One API to list scans, export assets, and analyze asset exposure scores (AES).
 
 ## Features
 
 - List all successful (completed) VM scans
-- Export assets filtered by tag category and value to CSV
-- Export all assets without filtering
+- Export assets to Parquet format (or CSV) - filtered by tag or all assets
 - Get detailed asset info by hostname (human-friendly JSON)
 - Get plugin details and affected assets by plugin ID
 - Search assets by IP address or hostname
@@ -74,28 +73,28 @@ A typical workflow to explore your Tenable One environment:
 python main.py --list-scans
 
 # 2. Discovery - Export full asset inventory
-python main.py --export-all -o all_assets.csv
+python main.py --export-all -o all_assets.parquet
 
 # 3. Top 10 riskiest assets - Where to focus?
-python main.py --top-assets -i all_assets.csv --top 10
+python main.py --top-assets -i all_assets.parquet --top 10
 
 # 4. Deep dive into a specific asset (pick one from top 10)
-python main.py --asset-info se-dc1 -i all_assets.csv
+python main.py --asset-info se-dc1 -i all_assets.parquet
 
 # 5. Search assets - By IP
-python main.py --search-assets 192.168.15 -i all_assets.csv
+python main.py --search-assets 192.168.15 -i all_assets.parquet
 
 # 6. Search assets - By hostname
-python main.py --search-assets dc -i all_assets.csv
+python main.py --search-assets dc -i all_assets.parquet
 
 # 7. Investigate a critical vulnerability
 python main.py --plugin-info 10114
 
 # 8. Tag-based filtering - Specific group
-python main.py --export-assets --tag-category OS --tag-value 'Linux' -o linux_servers.csv
+python main.py --export-assets --tag-category OS --tag-value Linux -o linux.parquet
 
 # 9. Top risks in that group
-python main.py --top-assets -i linux_servers.csv --top 5
+python main.py --top-assets -i linux.parquet --top 5
 ```
 
 **Demo story:** Scan status → Inventory → Risk prioritization → Investigation → Vulnerability analysis → Segment-based review
@@ -117,32 +116,35 @@ python main.py --list-scans
 ### Export assets by tag
 
 ```bash
-# Basic usage
+# Default output (assets.parquet)
 python main.py --export-assets --tag-category Location --tag-value London
 
 # Custom output file
-python main.py --export-assets --tag-category Environment --tag-value Production -o prod_assets.csv
+python main.py --export-assets --tag-category OS --tag-value Linux -o linux.parquet
+
+# Export as CSV if needed
+python main.py --export-assets --tag-category OS --tag-value Linux -o linux.csv
 ```
 
 ### Export all assets
 
 ```bash
-# Export all assets without tag filtering
+# Export all assets (default: assets.parquet)
 python main.py --export-all
 
-# With custom output file
-python main.py --export-all -o all_assets.csv
+# Custom output file
+python main.py --export-all -o all_assets.parquet
 ```
 
 ### Get asset info by hostname
 
 ```bash
 # First export assets, then search in the exported file
-python main.py --export-all -o all_assets.csv
+python main.py --export-all -o all_assets.parquet
 
 # Get detailed asset information in JSON format
-python main.py --asset-info se-dc1 -i all_assets.csv
-python main.py --asset-info 192.168.15.101 -i all_assets.csv
+python main.py --asset-info se-dc1 -i all_assets.parquet
+python main.py --asset-info 192.168.15.101 -i all_assets.parquet
 ```
 
 ### Get plugin info and affected assets
@@ -157,24 +159,24 @@ python main.py --plugin-info 19506
 
 ```bash
 # First export assets, then search in the exported file
-python main.py --export-all -o all_assets.csv
+python main.py --export-all -o all_assets.parquet
 
 # Search by IP address (partial match)
-python main.py --search-assets 192.168.15 -i all_assets.csv
+python main.py --search-assets 192.168.15 -i all_assets.parquet
 
 # Search by hostname (partial match)
-python main.py --search-assets win-server -i all_assets.csv
-python main.py --search-assets dc -i all_assets.csv
+python main.py --search-assets win-server -i all_assets.parquet
+python main.py --search-assets dc -i all_assets.parquet
 ```
 
 ### Display top exposed assets
 
 ```bash
-# From default file (assets.csv)
+# From default file (assets.parquet)
 python main.py --top-assets
 
 # From specific file with custom count
-python main.py --top-assets --input prod_assets.csv --top 10
+python main.py --top-assets -i all_assets.parquet --top 10
 ```
 
 ### Run all operations
@@ -197,8 +199,8 @@ python main.py --all --tag-category Location --tag-value London
 | `--all` | | Run all operations | |
 | `--tag-category` | | Tag category for filtering | `Location` |
 | `--tag-value` | | Tag value for filtering | `London` |
-| `--output` | `-o` | Output CSV file path | `assets.csv` |
-| `--input` | `-i` | Input CSV for analysis | `assets.csv` |
+| `--output` | `-o` | Output file path (.parquet or .csv) | `assets.parquet` |
+| `--input` | `-i` | Input file for analysis | `assets.parquet` |
 | `--top` | | Number of top assets | `5` |
 
 ## Project Structure
@@ -214,6 +216,16 @@ tenable-one-toolkit/
 ├── requirements.txt    # Python dependencies
 └── README.md
 ```
+
+## Why Parquet?
+
+We use Parquet format by default instead of CSV because:
+- **Data integrity**: Complex nested data (like tags) is preserved without escaping issues
+- **Performance**: Faster read/write operations, especially for large datasets
+- **Compression**: Smaller file sizes
+- **Type safety**: Column types are preserved
+
+You can still use CSV by specifying `.csv` extension in the `-o` and `-i` parameters.
 
 ## Script Explanations
 
@@ -231,7 +243,7 @@ This is the most critical part. Instead of listing assets page-by-page (which is
 
 - **`tio.exports.assets()`**: This initiates an asynchronous job on the Tenable cloud.
 - **Filtering**: We pass `tags=[(Category, Value)]` to the export function. Tenable filters the data server-side before sending it to us.
-- **Pandas**: We load the results into a Pandas DataFrame. This makes saving to CSV (`df.to_csv`) and sorting data significantly easier than writing raw file handlers.
+- **Pandas**: We load the results into a Pandas DataFrame and save to Parquet (or CSV based on file extension).
 
 ### 4. Export All Assets (`export_all_assets`)
 
@@ -239,8 +251,8 @@ Calls `tio.exports.assets()` without any filters to export the entire asset inve
 
 ### 5. Asset Info Lookup (`get_asset_info`)
 
-- First searches in the exported CSV file (specified by `-i` parameter) for more complete data
-- Falls back to API if CSV not found
+- First searches in the exported data file (specified by `-i` parameter) for more complete data
+- Falls back to API if file not found
 - Once asset UUID is found, retrieves full details via `tio.assets.details(uuid)`
 - Outputs human-friendly JSON with key fields: IP addresses, OS, AES/ACR scores, first/last seen dates, tags, etc.
 
@@ -257,8 +269,8 @@ Calls `tio.exports.assets()` without any filters to export the entire asset inve
 
 ### 8. Asset Search (`search_assets`)
 
-- First searches in the exported CSV file (specified by `-i` parameter) for more complete data
-- Falls back to API if CSV not found
+- First searches in the exported data file (specified by `-i` parameter) for more complete data
+- Falls back to API if file not found
 - Performs partial, case-insensitive matching across hostname, IPv4, and ID fields
 - Returns up to 50 matching assets with key details
 
@@ -280,86 +292,51 @@ Total Successful Scans: 1
 ### Export Assets
 
 ```
-$ python main.py --export-assets --tag-category tom --tag-value 'linux servers'
+$ python main.py --export-all -o all_assets.parquet
 
---- Asset Export (Tag: tom:linux servers) ---
+--- Asset Export (All Assets) ---
 Export job started, downloading data...
-113 assets exported to 'assets.csv'
-```
-
-**CSV Output Structure:**
-
-```
-$ head -3 assets.csv
-
-id,ipv4,hostname,os,exposure_score,acr_score,tags
-0521d598-94bf-407b-9c21-af96a4732277,192.168.1.41,websvr.labnet.local,Unknown,620.0,5.0,"[{'key': 'tom', 'value': 'linux servers', ...}]"
-091f3255-d7a1-4b5b-8a00-6ee6a03e3f63,192.168.1.70,win-2019,Unknown,773.0,6.0,"[{'key': 'tom', 'value': 'linux servers', ...}]"
-```
-
-| Column | Description |
-|--------|-------------|
-| `id` | Tenable asset UUID |
-| `ipv4` | Primary IPv4 address |
-| `hostname` | Asset hostname |
-| `os` | Operating system |
-| `exposure_score` | AES score (0-1000) |
-| `acr_score` | Asset Criticality Rating |
-| `tags` | Associated Tenable tags |
-
-### Asset Info
-
-```
-$ python main.py --asset-info win-2019
-
---- Asset Info: win-2019 ---
-{
-  "Asset ID": "091f3255-d7a1-4b5b-8a00-6ee6a03e3f63",
-  "Hostname": "win-2019",
-  "FQDN": "win-2019.labnet.local",
-  "IPv4 Addresses": ["192.168.1.70"],
-  "IPv6 Addresses": [],
-  "MAC Addresses": ["00:50:56:92:6f:96"],
-  "Operating System": "Windows Server 2019",
-  "System Type": ["eng. station"],
-  "Network": "Default",
-  "Exposure Score (AES)": 773,
-  "ACR Score": 6,
-  "First Seen": "2025-05-07T01:04:00.000Z",
-  "Last Seen": "2026-02-01T08:50:00.000Z",
-  "Last Authenticated Scan": "2026-01-15T10:30:00.000Z",
-  "Last Licensed Scan": "2026-02-01T08:50:00.000Z",
-  "Has Agent": false,
-  "Agent Name": [],
-  "Sources": ["NESSUS_SCAN"],
-  "Tags": [
-    "OS:Windows Server",
-    "Software:Mcafee Agent Missing",
-    "OS:Windows"
-  ]
-}
+13489 assets exported to 'all_assets.parquet'
 ```
 
 ### Top Exposed Assets
 
 ```
-$ python main.py --top-assets --top 10
+$ python main.py --top-assets -i all_assets.parquet --top 10
 
-Loaded 113 assets from 'assets.csv'
+Loaded 13489 assets from 'all_assets.parquet'
 
 --- Top 10 Most Exposed Assets (AES) ---
 AES        | IP Address      | Hostname
 --------------------------------------------------
-836        | 192.168.1.28    | win-vuln-email
-835        | 192.168.1.14    | win-exchange
-773        | 192.168.1.26    | prod-bigfix
-773        | 192.168.1.70    | win-2019
-773        | 192.168.1.43    | vistax64
-773        | 192.168.1.55    | winxpro
-773        | 192.168.1.64    | win-sql2012
-772        | 192.168.1.82    | winxp-nonhacked
-771        | 192.168.1.56    | win2k
-755        | 192.168.1.110   | svr-sharepoint
+948        | 192.168.15.102  | se-dc2
+948        | 192.168.15.101  | se-dc1
+947        | 192.168.42.100  | dc1
+945        | 192.168.15.168  | se-ad-dc
+942        | 192.168.48.56   | target2
+```
+
+### Asset Info
+
+```
+$ python main.py --asset-info se-dc1 -i all_assets.parquet
+
+--- Asset Info: se-dc1 ---
+{
+  "Asset ID": "fcc29644-748e-4143-83d6-f75055b575d0",
+  "Name": "se-dc1",
+  "Hostname": "se-dc1",
+  "FQDN": "se-dc1.demo.io",
+  "IPv4 Addresses": ["192.168.15.101"],
+  "Operating System": "Microsoft Windows Server 2019 Standard Build 17763",
+  "Exposure Score (AES)": 948,
+  "ACR Score": 9,
+  "Tags": [
+    "Software:Mcafee Agent Missing",
+    "OS:Windows Server",
+    "OS:Windows"
+  ]
+}
 ```
 
 ## License
