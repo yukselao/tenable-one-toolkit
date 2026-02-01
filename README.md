@@ -78,28 +78,33 @@ python main.py --export-all -o all_assets.parquet
 # 3. Top 10 riskiest assets - Where to focus?
 python main.py --top-assets -i all_assets.parquet --top 10
 
-# 4. Deep dive into a specific asset - details + vulnerabilities
-python main.py --asset-info se-dc1 -i all_assets.parquet
+# 4. Deep dive into a specific asset - details + top 5 vulnerabilities
+python main.py --asset-info se-dc1 -i all_assets.parquet --limit 5
 
-# 5. Search assets - By IP
-python main.py --search-assets 192.168.15 -i all_assets.parquet
+# 5. Get ALL vulnerabilities for an asset (no limit)
+python main.py --asset-info se-dc1 -i all_assets.parquet --limit 0
 
-# 6. Search assets - By hostname
-python main.py --search-assets dc -i all_assets.parquet
+# 6. Search assets - By IP (show first 10 matches)
+python main.py --search-assets 192.168.15 -i all_assets.parquet --limit 10
 
-# 7. Investigate a critical vulnerability
-python main.py --plugin-info 10114 --limit 10
+# 7. Search assets - By hostname (show all matches)
+python main.py --search-assets dc -i all_assets.parquet --limit 0
 
-# 8. Tag-based filtering - Specific group
+# 8. Investigate a critical vulnerability (top 5 affected assets)
+python main.py --plugin-info 10114 --limit 5
+
+# 9. Tag-based filtering - Specific group
 python main.py --export-assets --tag-category tom --tag-value 'linux servers' -o linux.parquet
 
-# 9. Top risks in that group
+# 10. Top risks in that group
 python main.py --top-assets -i linux.parquet --top 5
 
-# 10. Export for sharing - Convert to CSV or JSON
+# 11. Export for sharing - Convert to CSV or JSON
 python main.py --to-csv -i all_assets.parquet
 python main.py --to-json -i all_assets.parquet
 ```
+
+**Note:** Use `--limit N` to control output size. `--limit 0` or `--limit -1` shows all items.
 
 **Demo story:** Scan status → Inventory → Risk prioritization → Investigation → Vulnerability analysis → Segment-based review → Export for sharing
 
